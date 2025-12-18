@@ -8,6 +8,8 @@ st.title("🌿 Atreya — Personalized Wellness ")
 st.caption("Educational demo using LangChain + Neo4j + FastAPI. **Not medical advice.**")
 
 api_base = os.getenv("ATREYA_API_BASE", "http://127.0.0.1:8000")
+if not api_base.startswith("http"):
+    api_base = f"http://{api_base}"
 
 with st.sidebar:
     st.header("Connection")
