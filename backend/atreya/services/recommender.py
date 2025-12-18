@@ -8,36 +8,51 @@ class RecommenderService:
         self.graph = graph
 
     def recommend(self, req: RecommendRequest) -> RecommendResponse:
-        facts = self.graph.herbs_for_symptoms(req.symptoms)
-        herbs = list({f["herb"] for f in facts})
-        avoid_map = self.graph.contraindications(herbs)
+        # Always handle empty lists safely
+        symptoms = req.symptoms or []
+        lifestyle = req.lifestyle or []
 
-        llm_text = generate_recommendations(
-            age=req.age,
-            gender=req.gender,
-            symptoms=req.symptoms,
-            lifestyle=req.lifestyle,
-            facts=facts,
-            avoid_map=avoid_map
-        )
+        facts = self.graph.herbs_for_symptoms(symptoms)
+        herbs = list({str(f.get("herb", "")) for f in facts if f.get("herb")})
+        avoid_map = self.graph.contraindications(herbs) if herbs else {}
 
-        # Simple parser: turn facts into top 3 suggestions + attach avoid list
+        llm_text = ""
+        try:
+            llm_text = generate_recommendations(
+                age=req.age,
+                gender=req.gender,
+                symptoms=symptoms,
+                lifestyle=lifestyle,
+                facts=facts or [],
+                avoid_map=avoid_map or {}
+            )
+        except Exception as e:
+            # Last-resort fallback text if LLM path throws
+            llm_text = f"LLM path failed; using simple fallback. Error: {e}"
+
+        # Build suggestions from graph facts (no LLM dependence)
         top = {}
-        for f in facts:
-            h = f["herb"]
-            top.setdefault(h, {"why": [], "how": "tea/decoction 1-2x daily"})
-            why = f.get("evidence") or f.get("condition")
-            if why and why not in top[h]["why"]:
-                top[h]["why"].append(why)
-        suggestions = []
+        for f in facts or []:
+            h = str(f.get("herb", "")).strip()
+            if not h:
+                continue
+            top.setdefault(h, {"why": [], "how": "tea/decoction 1–2x daily"})
+            why_piece = str(f.get("evidence") or f.get("condition") or "Traditional support")
+            if why_piece and why_piece not in top[h]["why"]:
+                top[h]["why"].append(why_piece)
+
+        suggestions: List[HerbSuggestion] = []
         for i, (h, v) in enumerate(top.items()):
-            if i >= 5: break
-            suggestions.append(HerbSuggestion(
-                name=h,
-                why="; ".join(v["why"]) or "Traditional support",
-                how_to_use=v["how"],
-                avoid_with=avoid_map.get(h, [])
-            ))
+            if i >= 5:
+                break
+            suggestions.append(
+                HerbSuggestion(
+                    name=h,
+                    why="; ".join(v["why"]) or "Traditional support",
+                    how_to_use=v["how"],
+                    avoid_with=[str(x) for x in (avoid_map.get(h, []) or [])]
+                )
+            )
 
         tips = [
             "Prioritize 7–8 hours of consistent sleep.",
@@ -49,14 +64,14 @@ class RecommenderService:
             suggestions=suggestions,
             tips=tips,
             disclaimer="This is an educational demo and not medical advice. Consult a qualified professional.",
-            debug={"llm": llm_text[:1200]}
+            debug={"llm": (llm_text or "")[:1200]}
         )
 
     def diagnose(self, req: DiagnosisRequest) -> DiagnosisResponse:
-        conditions = self.graph.conditions_from_symptoms(req.symptoms)
-        out = generate_diagnosis(req.symptoms, req.lifestyle, conditions)
+        conditions = self.graph.conditions_from_symptoms(req.symptoms or [])
+        out = generate_diagnosis(req.symptoms or [], req.lifestyle or [], conditions or [])
         return DiagnosisResponse(
-            probable_conditions=conditions[:3],
+            probable_conditions=(conditions or [])[:3],
             confidence=out["confidence"],
             rationale=out["text"],
             disclaimer="This is an educational demo and not medical advice. Consult a qualified professional."

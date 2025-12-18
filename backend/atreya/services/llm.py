@@ -29,10 +29,9 @@ Return concise bullet points. Do NOT invent interactions that are not in facts/a
 
 
 def make_llm():
-    """Return a LangChain ChatOpenAI instance if API key is present; else return None."""
     if OPENAI_AVAILABLE and settings.openai_api_key:
         return ChatOpenAI(model=settings.openai_model, temperature=0.2)
-    return None
+    return None  # no-key fallback
 
 
 def _simple_from_facts(age: int, gender: str,
@@ -40,22 +39,20 @@ def _simple_from_facts(age: int, gender: str,
                        lifestyle: List[str],
                        facts: List[Dict[str, Any]],
                        avoid_map: Dict[str, List[str]]) -> str:
-    """Deterministic fallback text builder when no LLM is available."""
-    # Collect top herbs by occurrence across conditions
-    tally = {}
-    for f in facts:
-        h = f.get("herb", "Unknown")
-        why = f.get("evidence") or f.get("condition") or "Traditional support"
-        tally.setdefault(h, {"why": set(), "how": "tea/decoction 1–2x daily"})
+    tally: Dict[str, Dict[str, Any]] = {}
+    for f in facts or []:
+        h = str(f.get("herb", "Unknown"))
+        why = str(f.get("evidence") or f.get("condition") or "Traditional support")
+        if h not in tally:
+            tally[h] = {"why": set(), "how": "tea/decoction 1–2x daily"}
         tally[h]["why"].add(why)
 
-    # Pick up to 5
     herbs_out = []
     for i, (h, v) in enumerate(tally.items()):
         if i >= 5:
             break
-        why_list = "; ".join(sorted(v["why"]))
-        avoid = ", ".join(avoid_map.get(h, [])) if avoid_map.get(h) else "—"
+        why_list = "; ".join(sorted(v["why"])) if v["why"] else "Traditional support"
+        avoid = ", ".join(map(str, avoid_map.get(h, []))) if avoid_map.get(h) else "—"
         herbs_out.append(f"- **{h}** — Why: {why_list}. How: {v['how']}. Avoid with: {avoid}")
 
     if not herbs_out:
@@ -90,10 +87,8 @@ def generate_recommendations(age: int, gender: str,
                              avoid_map: Dict[str, List[str]]) -> str:
     llm = make_llm()
     if llm is None:
-        # Fallback text (no LangChain pipeline)
         return _simple_from_facts(age, gender, symptoms, lifestyle, facts, avoid_map)
 
-    # LLM path
     tmpl = PromptTemplate.from_template(PROMPT_TEMPLATE)
     chain = tmpl | llm | StrOutputParser()
     return chain.invoke({
@@ -115,16 +110,14 @@ def generate_diagnosis(symptoms: List[str], lifestyle: List[str], conditions: Li
             + ". This is a simple heuristic summary without an LLM.\n"
             "Caution: this is not medical advice."
         )
-        # naive confidence: based on count
         conf = min(1.0, max(0.3, len(conditions) / 5.0))
         return {"text": text, "confidence": conf}
 
-    prompt = (
+    out = llm.invoke(
         f"You are an Ayurvedic triage helper. Symptoms: {symptoms}. Lifestyle: {lifestyle}. "
         f"Likely conditions (from graph): {conditions}. Pick 1–3 most probable and explain briefly. "
         f"Add a caution: this is not medical advice."
     )
-    out = llm.invoke(prompt)
     text = getattr(out, "content", str(out))
     conf = min(1.0, max(0.3, len(conditions) / 5.0))
     return {"text": text, "confidence": conf}

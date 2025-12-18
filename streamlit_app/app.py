@@ -4,7 +4,7 @@ import os
 from streamlit_tags import st_tags
 
 st.set_page_config(page_title="Atreya — Wellness Demo", page_icon="🌿", layout="centered")
-st.title("🌿 Atreya — Personalized Wellness (Demo)")
+st.title("🌿 Atreya — Personalized Wellness ")
 st.caption("Educational demo using LangChain + Neo4j + FastAPI. **Not medical advice.**")
 
 api_base = os.getenv("ATREYA_API_BASE", "http://127.0.0.1:8000")
@@ -89,7 +89,7 @@ if st.button("Search herb"):
         st.error(str(e))
 
 st.divider()
-st.subheader("💬 Chat with Atreya (no API key needed)")
+st.subheader("💬 Chat with Atreya ")
 
 if "chat" not in st.session_state:
     st.session_state.chat = [
@@ -118,4 +118,4 @@ if user_msg:
     with st.chat_message("assistant"):
         st.markdown(reply)
 
-st.caption("© 2025 Atreya demo • Built for learning • Stay safe 🌱")
+st.caption("©  Atreya  • Built for learning • Stay safe 🌱")
