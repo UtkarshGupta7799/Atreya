@@ -110,6 +110,10 @@ def generate_diagnosis(symptoms: List[str], lifestyle: List[str], conditions: Li
             + ". This is a simple heuristic summary without an LLM.\n"
             "Caution: this is not medical advice."
         )
+<<<<<<< HEAD
+=======
+        
+>>>>>>> 3a0ec182ea7286fc3bd96cf0b01aee66f91770b6
         conf = min(1.0, max(0.3, len(conditions) / 5.0))
         return {"text": text, "confidence": conf}
 
