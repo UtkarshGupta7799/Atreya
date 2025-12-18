@@ -19,7 +19,7 @@ services:
   - type: web
     name: atreya-frontend
     env: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements-frontend.txt
     startCommand: streamlit run streamlit_app/app.py --server.port $PORT --server.address 0.0.0.0
     envVars:
       - key: ATREYA_API_BASE
